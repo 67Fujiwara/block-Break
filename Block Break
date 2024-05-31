@@ -1,0 +1,412 @@
+lib.h"
+#include"math.h"
+
+enum e_But {
+	But_Dow,	//1bit
+	But_Lef,	//2bit
+	But_Rig,	//3bit
+	But_up,		//4bit
+	But_A,		//5bit
+	But_B,		//6bit
+	But_X,		//7bit
+	But_Y,		//8bit
+	But_L,		//9bit
+	But_R,		//10bit
+	But_Sel,	//11bit
+	But_Sta,	//12bit
+	But_L3,		//13bit
+	But_R3,		//14bit
+	But_Total,
+};
+
+//パッドから取得した情報
+int Pad_Inp;
+
+//パッドを押したカウント
+int Pad_Cou[e_But::But_Total];	//Pad Count
+
+//パッドから取得した情報からパッドが押されているカウント数を更新する関数
+bool Pad_Read() {
+
+	//ｷｰﾎﾞｰﾄﾞ入力
+	Pad_Inp = CheckHitKeyAll(DX_INPUT_PAD1);
+	//Pad_Inp = GetJoypadInputState(DX_INPUT_PAD1);		//	ｼﾞｮｲｽﾃｨｯｸ入力
+
+	for (int b = 0; b < e_But::But_Total; b = b + 1) {
+		if (Pad_Inp & (1 << b)) {
+			Pad_Cou[b] = Pad_Cou[b] + 1;
+		}
+		else Pad_Cou[b] = 0;
+	}
+	return FALSE;
+}
+//長方形の構造体定義
+struct Ract {
+	int x;
+	int y;
+	int w;
+	int h;
+	bool flag;
+};
+
+//ﾌﾞﾛｯｸの個数
+#define BLOCK_NUM_X (16)
+#define BLOCK_NUM_Y (3)
+
+//ﾌﾞﾛｯｸの定義
+Ract Block[BLOCK_NUM_X][BLOCK_NUM_Y];
+
+//バー定義
+Ract Bar;
+
+//円の構造体定義
+struct Cir
+{
+	int x;
+	int y;
+	int r;
+};
+
+//速度の構造体定義
+struct Speed
+{
+	int x;
+	int y;
+};
+
+//ボール定義
+Cir Ball;
+
+//ボール速度定義
+Speed Ball_Speed;
+
+//ゲームの変数を初期化する関数
+void Game_Ini() {
+
+	//ブロックに関する変数初期化
+	for (int y = 0; y < BLOCK_NUM_Y; y = y + 1) {
+		for (int x = 0; x < BLOCK_NUM_X; x = x + 1) {
+			Block[x][y] = {
+				x * 100,
+				100 + y * 50,
+				100,
+				50,
+				TRUE };
+			
+		}
+	}
+
+	//バーに関する変数初期化
+	Bar = { 700, 700, 200, 30 };
+
+	//ボールに関する変数初期化
+	Ball = { 750, 500, 10 };
+
+	//ボールの速度に関する変数初期化
+	Ball_Speed = { 0, -10 };
+}
+
+//ブロックとボールの接触判定
+bool HitJudg(Ract block, Cir ball) 
+{
+	//円周の座標をﾙｰﾌﾟ計算
+	const double pi = 3.141592;
+	double red;
+	double x;
+	double y;
+	int circum_x;
+	int circum_y;
+	for (int i = 0; i < 360; i = i + 1)
+	{
+
+		//円周の座標をﾙｰﾌﾟ計算
+		red = pi * i / 180;
+		x = cos(red);
+		y = sin(red);
+		circum_x = ball.x + ball.r * x;
+		circum_y = ball.y + ball.r * y;
+
+		//ボールとブロックが接触した場合
+		if (block.y <= circum_y &&
+			circum_y <= block.y + block.h &&
+			block.x <= circum_x &&
+			circum_x <= block.x + block.w)
+		{
+			return TRUE;
+		}
+	}
+	//ボールとブロックが接触しなかった場合
+	return FALSE;
+}
+
+
+	
+
+//ゲームを計算する関数
+void Game_Cal()
+{
+
+	//バーの座標計算(コントローラーのボタン入力より）
+	if (Pad_Cou[e_But::But_Rig] != 0)
+	{
+		Bar.x = Bar.x + 10;
+	}
+	if (Pad_Cou[e_But::But_Lef] != 0)
+	{
+		Bar.x = Bar.x - 10;
+	}
+
+	//ブロックとボールの接触判定
+	for (int y = 0; y < BLOCK_NUM_Y; y = y + 1)
+	{
+		for (int x = 0; x < BLOCK_NUM_X; x = x + 1)
+		{
+			//ブロックとボールが接触した場合
+			if (Block[x][y].flag == TRUE && HitJudg(Block[x][y], Ball) == TRUE)
+			{
+				//ボールの座標計算
+				Ball_Speed.y = Ball_Speed.y * (-1);
+
+				//ブロック消去
+				Block[x][y].flag = FALSE;
+
+				//ループを抜ける
+				break;
+			}
+		}
+	}
+
+	//ボールがバーに接触した場合
+	if (HitJudg(Bar, Ball) == TRUE)
+	{
+
+		//ボールの速度計算
+		int x = (Ball.x - (Bar.x + Bar.w / 2)) / 20;
+		Ball_Speed.x = x;
+		Ball_Speed.y = Ball_Speed.y * (-1);
+	}
+
+	//ボールの座標計算
+	Ball.y = Ball.y + Ball_Speed.y;
+	Ball.x = Ball.x + Ball_Speed.x;
+
+	//ボールが天井に接触した
+	if (Ball.y < 0)
+	{
+		//ボールの速度計算
+		Ball_Speed.y = Ball_Speed.y * (-1);
+	}
+	//ボールが壁に接触した場合
+	if (Ball.x < 0 || Ball.x > 1600 - 2 * Ball.r)
+	{
+		//ボールの速度計算
+		Ball_Speed.x = Ball_Speed.x * (-1);
+	}
+	//ボールの座標計算
+	Ball.y = Ball.y + Ball_Speed.y;
+	Ball.x = Ball.x + Ball_Speed.x;	
+}
+
+//ゲームを描画する関数
+	void Game_Draw()
+	{
+		//ブロック
+		for (int y = 0; y < BLOCK_NUM_Y; y = y + 1)
+		{
+			for (int x = 0; x < BLOCK_NUM_X; x = x + 1)
+			{
+				if (Block[x][y].flag == TRUE)
+				{
+					switch (y)
+					{
+
+					case 0:
+
+						DrawBox(
+							Block[x][y].x,
+							Block[x][y].y,
+							Block[x][y].x + Block[x][y].w,
+							Block[x][y].y + Block[x][y].h,
+							GetColor(255, 0, 0),
+							TRUE);
+
+						break;
+					case 1:
+
+						DrawBox(
+							Block[x][y].x,
+							Block[x][y].y,
+							Block[x][y].x + Block[x][y].w,
+							Block[x][y].y + Block[x][y].h,
+							GetColor(0, 255, 0),
+							TRUE);
+
+						break;
+					case 2:
+
+						DrawBox(
+							Block[x][y].x,
+							Block[x][y].y,
+							Block[x][y].x + Block[x][y].w,
+							Block[x][y].y + Block[x][y].h,
+							GetColor(0, 0, 255),
+							TRUE);
+
+						break;
+					}
+
+					//網目
+					DrawBox(
+						Block[x][y].x,
+						Block[x][y].y,
+						Block[x][y].x + Block[x][y].w,
+						Block[x][y].y + Block[x][y].h,
+						GetColor(0, 0, 0),
+						FALSE);
+
+					//座標
+					DrawFormatString(
+						Block[x][y].x,
+						Block[x][y].y,
+						GetColor(255, 255, 255),
+						"(%d,%d)",
+						Block[x][y].x + Block[x][y].w,
+						Block[x][y].y + Block[x][y].h,
+						GetColor(0, 0, 0),
+						FALSE);
+				}
+			}
+		}
+
+		//バー
+		DrawBox(
+			Bar.x,
+			Bar.y,
+			Bar.x + Bar.w,
+			Bar.y + Bar.h,
+			GetColor(255, 255, 255),
+			TRUE);
+
+		//バー座標
+		DrawFormatString(
+			Bar.x,
+			Bar.y,
+			GetColor(0, 0, 0),
+			"(%d,%d)",
+			Bar.x,
+			Bar.y);
+
+		//ボール
+		DrawCircle(
+			Ball.x,
+			Ball.y,
+			Ball.r,
+			GetColor(255, 0, 0),
+			TRUE);
+
+		//座標
+		DrawFormatString(
+			Ball.x,
+			Ball.y,
+			GetColor(255, 255, 255),
+			"(%d,%d)",
+			Ball.x,
+			Ball.y);
+
+		//ボールSpeed
+		DrawFormatString(
+			Ball.x,
+			Ball.y + 20,
+			GetColor(255, 255, 255),
+			"(%d,%d)",
+			Ball_Speed.x,
+			Ball_Speed.y);
+
+		//スコアカウント
+		int score = 0;
+		for (int y = 0; y < BLOCK_NUM_Y; y = y + 1)
+		{
+			for (int x = 0; x < BLOCK_NUM_X; x = x + 1)
+			{
+				if (Block[x][y].flag == FALSE)
+				{
+					score = score + 1;
+				}
+			}
+		}
+
+		//スコア表示
+		DrawFormatString(
+			1500,
+			700,
+			GetColor(255, 255, 255),
+			"Score = %d",
+			score);
+
+	}
+
+
+
+//ゲーム終了時の処理を行う関数
+bool Game_End()
+{
+	bool end = TRUE;
+
+	for (int y = 0; y < BLOCK_NUM_Y; y = y + 1)
+	{
+		for (int x = 0; x < BLOCK_NUM_X; x = x + 1)
+		{
+			//1個でもブロックがあればゲーム続行
+			if (Block[x][y].flag == TRUE)
+			{
+				end = FALSE;
+			}
+		}
+	}
+	//ボールが落ちてしまった場合
+	if (Ball.y > 900)
+	{
+		end = TRUE;
+	}
+	return end;
+}
+
+
+//------------------------------------
+//　概　要：メイン関数
+//　引　数：-
+//　戻り値：正常 / 異常
+//------------------------------------
+
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+
+	ChangeWindowMode(TRUE);
+	DxLib_Init();
+
+	//Window Init
+	SetMainWindowText("ﾌﾞﾛｯｸ崩し");
+	SetWindowInitPosition(0, 0);
+	SetGraphMode(1500, 800, 32);
+	SetBackgroundColor(0, 0, 0);
+	SetDrawScreen(DX_SCREEN_BACK);
+
+	Game_Ini();
+
+	//Case Select
+	while (ScreenFlip() == 0 &&
+		ClearDrawScreen() == 0 &&
+		ProcessMessage() == 0 &&
+		Pad_Read() == 0)
+	{
+		Game_Cal();
+		Game_Draw();
+
+		if (Game_End() == TRUE)
+		{
+			Game_Ini();
+		}
+	}
+
+	DxLib_End();
+	return 0;
+}
